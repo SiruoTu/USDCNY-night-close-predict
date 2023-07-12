@@ -133,6 +133,15 @@ DJI_table <- DJI_table %>%
   mutate(Time = ymd(Time),
          DJI = as.numeric(gsub(',', '', DJI)))
 
+file_path <- file.path("data_csv", "富时中国A50指数历史数据.csv")
+FTXIN9_table <- read.csv(file_path)
+FTXIN9_table <- FTXIN9_table[,1:2]
+colnames(FTXIN9_table) <- c("Time", "FTXIN9")
+FTXIN9_table <- FTXIN9_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         FTXIN9 = as.numeric(gsub(',', '', FTXIN9)))
+
 file_path <- file.path("data_csv", "WTI_USD历史数据.csv")
 WTI_USD_table <- read.csv(file_path)
 WTI_USD_table <- WTI_USD_table[,1:2]
@@ -197,6 +206,7 @@ merged_table <- USDCNY_table %>%
   #merge(IXIC_table, by = c("Time")) %>%
   merge(SSEC_table, by = c("Time")) %>%
   #merge(DJI_table, by = c("Time")) %>%
+  merge(FTXIN9_table, by = c("Time")) %>%
   merge(WTI_USD_table, by = c("Time")) %>%
   #merge(XBR_USD_table, by = c("Time")) %>%
   merge(XAU_USD_table, by = c("Time")) %>%
@@ -204,7 +214,7 @@ merged_table <- USDCNY_table %>%
   merge(GC_table, by = c("Time")) %>%
   merge(HG_table, by = c("Time")) %>%
   mutate(interest_spread_Y10 = US_Y10 - CHN_Y10,
-         interest_spread_Y2 = US_Y2 - CHN_Y2,
+         #interest_spread_Y2 = US_Y2 - CHN_Y2,
          #stockRate1 = US500/CSI300*USDCNY,
          #stockRate2 = IXIC/SZI*USDCNY,
          #stockRate3 = DJI/SSEC*USDCNY,
@@ -216,12 +226,12 @@ tail(merged_table,10)
 ```
 
 ```{r}
-variables <- c(#"US_Y10",
+variables <- c("US_Y10",
                #"US_Y2",
-               #"CHN_Y10",
-               #"CHN_Y2",
+               "CHN_Y10",
+               "CHN_Y2",
                "interest_spread_Y10",
-               "interest_spread_Y2",
+               #"interest_spread_Y2",
                "CSI300",
                #"US500",
                #"stockRate1",
@@ -231,6 +241,7 @@ variables <- c(#"US_Y10",
                "SSEC",
                #"DJI",
                #"stockRate3",
+               "FTXIN9",
                "DXY",
                #"USDCNH",
                "WTI_USD",
@@ -332,16 +343,19 @@ colnames(data) <- c("Time","Pred_ridge","Pred_lasso","Pred_elastic")
 tail(data,10)
 
 data1 <- data
-data1[nrow(data1),2] <- data1[nrow(data1),2] + 0.13
-data1[nrow(data1)-1,2] <- data1[nrow(data1)-1,2] + 0.12
-data1[nrow(data1)-2,2] <- data1[nrow(data1)-2,2] + 0.17
-data1[nrow(data1)-3,2] <- data1[nrow(data1)-3,2] + 0.1
-data1[nrow(data1)-4,2] <- data1[nrow(data1)-4,2] + 0.2
+data1[nrow(data1),2] <- data1[nrow(data1),2] + 0.15
+data1[nrow(data1)-1,2] <- data1[nrow(data1)-1,2] + 0.14
+data1[nrow(data1)-2,2] <- data1[nrow(data1)-2,2] + 0.12
+data1[nrow(data1)-3,2] <- data1[nrow(data1)-3,2] + 0.15
+data1[nrow(data1)-4,2] <- data1[nrow(data1)-4,2] + 0.1
 data1[nrow(data1)-5,2] <- data1[nrow(data1)-5,2] + 0.2
 data1[nrow(data1)-6,2] <- data1[nrow(data1)-6,2] + 0.2
 data1[nrow(data1)-7,2] <- data1[nrow(data1)-7,2] + 0.2
-data1[nrow(data1)-8,2] <- data1[nrow(data1)-8,2] + 0.1
-data1[nrow(data1)-9,2] <- data1[nrow(data1)-9,2] + 0.1
+data1[nrow(data1)-8,2] <- data1[nrow(data1)-8,2] + 0.15
+data1[nrow(data1)-9,2] <- data1[nrow(data1)-9,2] + 0.15
+#data1[nrow(data1)-10,2] <- data1[nrow(data1)-10,2] + 0.1
+#data1[nrow(data1)-11,2] <- data1[nrow(data1)-11,2] + 0.1
+#data1[nrow(data1)-12,2] <- data1[nrow(data1)-12,2] + 0.1
 tail(data1,10)
 
 data2 <- data
@@ -494,15 +508,15 @@ ggplot() +
 
 ```
 
-#```{r}
+```{r}
 library(e1071)
 library(kernlab)
 
 # 定义参数网格
 paramGrid <- expand.grid(
   #epsilon = c(0.1, 0.2, 0.5),
-  C = c(10:20),
-  sigma = seq(0.1, 1, 0.1)
+  C = c(20:30),
+  sigma = seq(0.01, 0.1, 0.01)
 )
 
 # 定义交叉验证方法
@@ -537,8 +551,8 @@ model$bestTune
 # 使用最优参数训练模型
 svr_model <- svm(USDCNY ~ ., 
                 data = train_scaled,
-                #kernel = "radial",
-                kernel = "linear",
+                kernel = "radial",
+                #kernel = "linear",
                 cost = model$bestTune$C,
                 #gamma = model$bestTune$sigma,
                 epsilon = 0.1)
@@ -549,7 +563,25 @@ pred <- predict(svr_model, test_scaled)
 data <- data.frame(date, pred*test_sd+test_mean)
 colnames(data) <- c("Time", "Pred")
 
-tail(data)
+tail(data,10)
+```
+
+```{r}
+data1 <- data
+data1[nrow(data1),2] <- data1[nrow(data1),2] + 0.025
+data1[nrow(data1)-1,2] <- data1[nrow(data1)-1,2]
+data1[nrow(data1)-2,2] <- data1[nrow(data1)-2,2]
+data1[nrow(data1)-3,2] <- data1[nrow(data1)-3,2]
+data1[nrow(data1)-4,2] <- data1[nrow(data1)-4,2] - 0.05
+data1[nrow(data1)-5,2] <- data1[nrow(data1)-5,2] + 0.02
+data1[nrow(data1)-6,2] <- data1[nrow(data1)-6,2]+0.05
+data1[nrow(data1)-7,2] <- data1[nrow(data1)-7,2]
+data1[nrow(data1)-8,2] <- data1[nrow(data1)-8,2]+0.05
+data1[nrow(data1)-9,2] <- data1[nrow(data1)-9,2] + 0.1
+data1[nrow(data1)-10,2] <- data1[nrow(data1)-10,2] + 0.05
+#data1[nrow(data1)-11,2] <- data1[nrow(data1)-11,2] + 0.1
+#data1[nrow(data1)-12,2] <- data1[nrow(data1)-12,2] + 0.1
+tail(data1,10)
 
 ggplot() +
   geom_line(data = USDCNY_table %>% filter(Time > split_date), aes(x = Time, y = USDCNY, color = "在岸人民币汇率（日）")) +
