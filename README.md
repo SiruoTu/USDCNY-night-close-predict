@@ -4,7 +4,7 @@
 
 参考数据：
 
-1. [美元指数历史数据](https://cn.investing.com/indices/usdollar-historical-data))
+1. [美元指数历史数据](https://cn.investing.com/indices/usdollar-historical-data)
 2. [中国二年期国债收益率历史数据](https://cn.investing.com/rates-bonds/china-2-year-bond-yield-historical-data)
 3. [美国二年期国债收益率历史数据](https://cn.investing.com/rates-bonds/u.s.-2-year-bond-yield-historical-data)
 4. [中国十年期国债收益率历史数据](https://cn.investing.com/rates-bonds/china-10-year-bond-yield-historical-data)
