@@ -1,4 +1,4 @@
-# USDCNY-night-close-predict
+# USDCNY Night Close Predict
 
 根据当天 16:30 的收盘在岸美元兑人民币汇率以及同时的一系列指标，预测第二天 3:00 的夜盘收盘汇率。
 
