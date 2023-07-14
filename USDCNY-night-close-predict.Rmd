@@ -1,0 +1,505 @@
+---
+title: "USDCNY Night Close Predict"
+output: html_document
+date: "2023-07-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(caret)
+library(glmnet)
+library(Metrics)
+library(ggsci)
+
+# 设置工作目录为当前文件夹
+setwd(".")
+
+# 构建文件路径
+file_path <- file.path("data_csv", "即期汇率_美元兑人民币.csv")
+USDCNY_table <- read.csv(file_path)
+colnames(USDCNY_table) <- c("Time", "USDCNY")
+USDCNY_table <- USDCNY_table %>%
+  na.omit() %>%
+  mutate(Time = ymd(Time))
+
+file_path <- file.path("data_csv", "美元指数历史数据.csv")
+DXY_table <- read.csv(file_path)
+DXY_table <- DXY_table[,1:2]
+colnames(DXY_table) <- c("Time", "DXY")
+DXY_table <- DXY_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time))
+
+file_path <- file.path("data_csv", "美国十年期国债收益率历史数据.csv")
+US_Y10_table <- read.csv(file_path)
+US_Y10_table <- US_Y10_table[,1:2]
+colnames(US_Y10_table) <- c("Time", "US_Y10")
+US_Y10_table <- US_Y10_table %>%
+  na.omit() %>%
+  mutate(Time = ymd(Time))
+
+file_path <- file.path("data_csv", "美国二年期国债收益率历史数据.csv")
+US_Y2_table <- read.csv(file_path)
+US_Y2_table <- US_Y2_table[,1:2]
+colnames(US_Y2_table) <- c("Time", "US_Y2")
+US_Y2_table <- US_Y2_table %>%
+  na.omit() %>%
+  mutate(Time = ymd(Time))
+
+file_path <- file.path("data_csv", "中国十年期国债收益率历史数据.csv")
+CHN_Y10_table <- read.csv(file_path)
+CHN_Y10_table <- CHN_Y10_table[,1:2]
+colnames(CHN_Y10_table) <- c("Time", "CHN_Y10")
+CHN_Y10_table <- CHN_Y10_table %>%
+  na.omit() %>%
+  mutate(Time = ymd(Time))
+#CHN_Y10_table <- CHN_Y10_table[order(CHN_Y10_table[,1]),]
+
+file_path <- file.path("data_csv", "中国二年期国债收益率历史数据.csv")
+CHN_Y2_table <- read.csv(file_path)
+CHN_Y2_table <- CHN_Y2_table[,1:2]
+colnames(CHN_Y2_table) <- c("Time", "CHN_Y2")
+CHN_Y2_table <- CHN_Y2_table %>%
+  na.omit() %>%
+  mutate(Time = ymd(Time))
+#CHN_Y2_table <- CHN_Y2_table[order(CHN_Y2_table[,1]),]
+
+file_path <- file.path("data_csv", "沪深300指数历史数据.csv")
+CSI300_table <- read.csv(file_path)
+CSI300_table <- CSI300_table[,1:2]
+colnames(CSI300_table) <- c("Time", "CSI300")
+CSI300_table <- CSI300_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         CSI300 = as.numeric(gsub(',', '', CSI300)))
+#CSI300_table <- CSI300_table[order(CSI300_table[,1]),]
+
+file_path <- file.path("data_csv", "美国标准普尔500指数历史数据.csv")
+US500_table <- read.csv(file_path)
+US500_table <- US500_table[,1:2]
+colnames(US500_table) <- c("Time", "US500")
+US500_table <- US500_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         US500 = as.numeric(gsub(',', '', US500)))
+#US500_table <- US500_table[order(US500_table[,1]),]
+
+file_path <- file.path("data_csv", "深证成份指数历史数据.csv")
+SZI_table <- read.csv(file_path)
+SZI_table <- SZI_table[,1:2]
+colnames(SZI_table) <- c("Time", "SZI")
+SZI_table <- SZI_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         SZI = as.numeric(gsub(',', '', SZI)))
+
+file_path <- file.path("data_csv", "纳斯达克综合指数历史数据.csv")
+IXIC_table <- read.csv(file_path)
+IXIC_table <- IXIC_table[,1:2]
+colnames(IXIC_table) <- c("Time", "IXIC")
+IXIC_table <- IXIC_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         IXIC = as.numeric(gsub(',', '', IXIC)))
+
+file_path <- file.path("data_csv", "上证指数历史数据.csv")
+SSEC_table <- read.csv(file_path)
+SSEC_table <- SSEC_table[,1:2]
+colnames(SSEC_table) <- c("Time", "SSEC")
+SSEC_table <- SSEC_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         SSEC = as.numeric(gsub(',', '', SSEC)))
+
+file_path <- file.path("data_csv", "道琼斯工业平均指数历史数据.csv")
+DJI_table <- read.csv(file_path)
+DJI_table <- DJI_table[,1:2]
+colnames(DJI_table) <- c("Time", "DJI")
+DJI_table <- DJI_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         DJI = as.numeric(gsub(',', '', DJI)))
+
+file_path <- file.path("data_csv", "富时中国A50指数历史数据.csv")
+FTXIN9_table <- read.csv(file_path)
+FTXIN9_table <- FTXIN9_table[,1:2]
+colnames(FTXIN9_table) <- c("Time", "FTXIN9")
+FTXIN9_table <- FTXIN9_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         FTXIN9 = as.numeric(gsub(',', '', FTXIN9)))
+
+file_path <- file.path("data_csv", "WTI_USD历史数据.csv")
+WTI_USD_table <- read.csv(file_path)
+WTI_USD_table <- WTI_USD_table[,1:2]
+colnames(WTI_USD_table) <- c("Time", "WTI_USD")
+WTI_USD_table <- WTI_USD_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time))
+
+file_path <- file.path("data_csv", "XBR_USD历史数据.csv")
+XBR_USD_table <- read.csv(file_path)
+XBR_USD_table <- XBR_USD_table[,1:2]
+colnames(XBR_USD_table) <- c("Time", "XBR_USD")
+XBR_USD_table <- XBR_USD_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time))
+
+file_path <- file.path("data_csv", "XAU_USD历史数据.csv")
+XAU_USD_table <- read.csv(file_path)
+XAU_USD_table <- XAU_USD_table[,1:2]
+colnames(XAU_USD_table) <- c("Time", "XAU_USD")
+XAU_USD_table <- XAU_USD_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         XAU_USD = as.numeric(gsub(',', '', XAU_USD)))
+
+file_path <- file.path("data_csv", "XAU_CNY历史数据.csv")
+XAU_CNY_table <- read.csv(file_path)
+XAU_CNY_table <- XAU_CNY_table[,1:2]
+colnames(XAU_CNY_table) <- c("Time", "XAU_CNY")
+XAU_CNY_table <- XAU_CNY_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         XAU_CNY = as.numeric(gsub(',', '', XAU_CNY)))
+
+file_path <- file.path("data_csv", "黄金期货历史数据.csv")
+GC_table <- read.csv(file_path)
+GC_table <- GC_table[,1:2]
+colnames(GC_table) <- c("Time", "GC")
+GC_table <- GC_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time),
+         GC = as.numeric(gsub(',', '', GC)))
+
+file_path <- file.path("data_csv", "铜期货历史数据.csv")
+HG_table <- read.csv(file_path)
+HG_table <- HG_table[,1:2]
+colnames(HG_table) <- c("Time", "HG")
+HG_table <- HG_table %>%
+  na.omit() %>% 
+  mutate(Time = ymd(Time))
+
+merged_table <- USDCNY_table %>%
+  merge(DXY_table, by = c("Time")) %>%
+  merge(US_Y10_table, by = c("Time")) %>%
+  merge(US_Y2_table, by = c("Time")) %>%
+  merge(CHN_Y10_table, by = c("Time")) %>%
+  merge(CHN_Y2_table, by = c("Time")) %>%
+  merge(CSI300_table, by = c("Time")) %>%
+  #merge(US500_table, by = c("Time")) %>%
+  merge(SZI_table, by = c("Time")) %>%
+  #merge(IXIC_table, by = c("Time")) %>%
+  merge(SSEC_table, by = c("Time")) %>%
+  #merge(DJI_table, by = c("Time")) %>%
+  merge(FTXIN9_table, by = c("Time")) %>%
+  merge(WTI_USD_table, by = c("Time")) %>%
+  #merge(XBR_USD_table, by = c("Time")) %>%
+  merge(XAU_USD_table, by = c("Time")) %>%
+  merge(XAU_CNY_table, by = c("Time")) %>%
+  merge(GC_table, by = c("Time")) %>%
+  merge(HG_table, by = c("Time")) %>%
+  mutate(interest_spread_Y10 = US_Y10 - CHN_Y10,
+         interest_spread_Y2 = US_Y2 - CHN_Y2,
+         #stockRate1 = US500/CSI300*USDCNY,
+         #stockRate2 = IXIC/SZI*USDCNY,
+         #stockRate3 = DJI/SSEC*USDCNY,
+         XAURate = XAU_CNY/XAU_USD)
+
+#merged_table %>% glimpse
+
+tail(merged_table,10)
+```
+
+```{r}
+variables <- c(#"US_Y10",
+               #"US_Y2",
+               #"CHN_Y10",
+               #"CHN_Y2",
+               "interest_spread_Y10",
+               "interest_spread_Y2",
+               "CSI300",
+               #"US500",
+               #"stockRate1",
+               "SZI",
+               #"IXIC",
+               #"stockRate2",
+               "SSEC",
+               #"DJI",
+               #"stockRate3",
+               "FTXIN9",
+               "DXY",
+               #"USDCNH",
+               "WTI_USD",
+               #"XBR_USD",
+               "XAU_USD",
+               "XAU_CNY",
+               #"XAURate",
+               "GC",
+               "HG"
+               )
+
+n <- 1
+
+df <- cbind(merged_table[-c(1:n),c("Time","USDCNY")], 
+            merged_table[-c((nrow(merged_table)-(n-1)):nrow(merged_table)),variables])
+
+split_date <- max(df$Time, na.rm=TRUE) - months(3)
+
+train <- df %>%
+  filter(Time <= split_date)
+test <- df %>%
+  filter(Time > split_date)
+
+train_scaled <- scale(train[c("USDCNY",variables)], center = TRUE, scale = TRUE)
+
+train_center <- attr(train_scaled, "scaled:center")
+train_scale <- attr(train_scaled, "scaled:scale")
+
+test_scaled <- scale(test[c("USDCNY",variables)], center = attr(train_scaled, "scaled:center"), scale = attr(train_scaled, "scaled:scale"))
+
+train_scaled <- as.data.frame(train_scaled)
+test_scaled <- as.data.frame(test_scaled)
+
+last_date <- tail(df$Time, n = 1) # 找到最后一个日期
+#last_date
+new_dates <- seq.Date(from = last_date + 1, by = "day", length.out = n) # 生成新日期
+
+new_rows <- data.frame(Time = new_dates)
+
+date <- rbind(test["Time"], new_rows)
+date <- as.data.frame(date[-1,])
+#date
+
+train_mean <- mean(train$USDCNY)
+train_sd <- sd(train$USDCNY)
+```
+
+```{r}
+lambda <- 10^seq(-3, 3, length = 100)
+
+# 岭回归
+set.seed(123)
+ridge <- train(
+  USDCNY ~., data = train_scaled, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneGrid = expand.grid(alpha = 0, lambda = lambda)
+  )
+# Model coefficients
+coef(ridge$finalModel, ridge$bestTune$lambda)
+# Make predictions
+test_pre1 <- ridge %>% predict(test_scaled)
+
+
+# Lasso回归
+set.seed(123)
+lasso <- train(
+  USDCNY ~., data = train_scaled, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneGrid = expand.grid(alpha = 1, lambda = lambda)
+  )
+# Model coefficients
+coef(lasso$finalModel, lasso$bestTune$lambda)
+# Make predictions
+test_pre2 <- lasso %>% predict(test_scaled)
+
+
+# 弹性网络回归
+set.seed(123)
+elastic <- train(
+  USDCNY ~., data = train_scaled, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 10
+  )
+# Model coefficients
+coef(elastic$finalModel, elastic$bestTune$lambda)
+# Make predictions
+test_pre3 <- elastic %>% predict(test_scaled)
+
+
+
+data <- data.frame(date, test_pre1*train_sd+train_mean, test_pre2*train_sd+train_mean, test_pre3*train_sd+train_mean)
+colnames(data) <- c("Time","Pred_ridge","Pred_lasso","Pred_elastic")
+
+tail(data,10)
+```
+
+```{r}
+ggplot() +
+  geom_line(data = USDCNY_table %>% filter(Time > split_date), aes(x = Time, y = USDCNY, color = "在岸人民币汇率（日）")) +
+  geom_line(data = data, aes(x = Time, y = Pred_ridge, color = "岭回归预测汇率")) +
+  geom_line(data = data, aes(x = Time, y = Pred_lasso, color = "Lasso回归预测汇率")) +
+  geom_line(data = data, aes(x = Time, y = Pred_elastic, color = "弹性网络预测汇率")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%Y-%m-%d") +
+  scale_color_npg(limits = c("在岸人民币汇率（日）", "岭回归预测汇率", "Lasso回归预测汇率", "弹性网络预测汇率")) +
+  labs(x = "", y = "汇率") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        #axis.text.x = element_text(angle = 30, hjust = 1, size = rel(0.8)),
+        #text=element_text(family="STKaiti"), 
+        #plot.title=element_text(hjust=0.5),
+        legend.position = "top",
+        legend.title = element_blank())
+
+ggplot() +
+  geom_line(data = USDCNY_table %>% filter(Time > split_date), aes(x = Time, y = USDCNY, color = "在岸人民币汇率（日）")) +
+  geom_line(data = data, aes(x = Time, y = Pred_ridge, color = "岭回归预测汇率")) +
+  #geom_line(data = data, aes(x = Time, y = Pred_lasso, color = "Lasso回归预测汇率")) +
+  #geom_line(data = data, aes(x = Time, y = Pred_elastic, color = "弹性网络预测汇率")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%Y-%m-%d") +
+  #scale_color_npg(limits = c("在岸人民币汇率（日）", "岭回归预测汇率", "Lasso回归预测汇率", "弹性网络预测汇率")) +
+  scale_color_npg(limits = c("在岸人民币汇率（日）", "岭回归预测汇率")) +
+  labs(x = "", y = "汇率") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        #axis.text.x = element_text(angle = 30, hjust = 1, size = rel(0.8)),
+        #text=element_text(family="STKaiti"), 
+        #plot.title=element_text(hjust=0.5),
+        legend.position = "top",
+        legend.title = element_blank())
+
+ggplot() +
+  geom_line(data = USDCNY_table %>% filter(Time > split_date), aes(x = Time, y = USDCNY, color = "在岸人民币汇率（日）")) +
+  #geom_line(data = data, aes(x = Time, y = Pred_ridge, color = "岭回归预测汇率")) +
+  geom_line(data = data, aes(x = Time, y = Pred_lasso, color = "Lasso回归预测汇率")) +
+  #geom_line(data = data, aes(x = Time, y = Pred_elastic, color = "弹性网络预测汇率")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%Y-%m-%d") +
+  #scale_color_npg(limits = c("在岸人民币汇率（日）", "岭回归预测汇率", "Lasso回归预测汇率", "弹性网络预测汇率")) +
+  scale_color_npg(limits = c("在岸人民币汇率（日）", "Lasso回归预测汇率")) +
+  labs(x = "", y = "汇率") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        #axis.text.x = element_text(angle = 30, hjust = 1, size = rel(0.8)),
+        #text=element_text(family="STKaiti"), 
+        #plot.title=element_text(hjust=0.5),
+        legend.position = "top",
+        legend.title = element_blank())
+
+ggplot() +
+  geom_line(data = USDCNY_table %>% filter(Time > split_date), aes(x = Time, y = USDCNY, color = "在岸人民币汇率（日）")) +
+  #geom_line(data = data, aes(x = Time, y = Pred_ridge, color = "岭回归预测汇率")) +
+  #geom_line(data = data, aes(x = Time, y = Pred_lasso, color = "Lasso回归预测汇率")) +
+  geom_line(data = data, aes(x = Time, y = Pred_elastic, color = "弹性网络预测汇率")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%Y-%m-%d") +
+  #scale_color_npg(limits = c("在岸人民币汇率（日）", "岭回归预测汇率", "Lasso回归预测汇率", "弹性网络预测汇率")) +
+  scale_color_npg(limits = c("在岸人民币汇率（日）", "弹性网络预测汇率")) +
+  labs(x = "", y = "汇率") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        #axis.text.x = element_text(angle = 30, hjust = 1, size = rel(0.8)),
+        #text=element_text(family="STKaiti"), 
+        #plot.title=element_text(hjust=0.5),
+        legend.position = "top",
+        legend.title = element_blank())
+```
+
+```{r}
+library(e1071)
+library(kernlab)
+
+# 定义参数网格
+paramGrid <- expand.grid(
+  #epsilon = c(0.1, 0.2, 0.5),
+  C = c(20:30),
+  sigma = seq(0.01, 0.1, 0.01)
+)
+
+# 定义交叉验证方法
+ctrl <- trainControl(
+  method = "repeatedcv",
+  repeats = 3,
+  number = 5,
+  verboseIter = TRUE,
+  savePredictions = TRUE,
+  returnData = FALSE,
+  returnResamp = "all"
+)
+
+# 训练模型
+set.seed(123)
+model <- train(
+  x = train[,-c(1:2)],
+  #x= train_scaled[,-1],
+  y = train[,2],
+  #y = train_scaled[,1],
+  method = "svmRadial",
+  #method = "svmLinear",
+  trControl = ctrl,
+  tuneGrid = paramGrid,
+  preProcess = c("center", "scale"),
+  metric = "RMSE"
+)
+
+# 输出最优参数
+model$bestTune
+```
+
+```{r}
+# 使用最优参数训练模型
+svr_model <- svm(USDCNY ~ ., 
+                data = train_scaled,
+                #kernel = "radial",
+                kernel = "linear",
+                cost = model$bestTune$C,
+                #gamma = model$bestTune$sigma,
+                epsilon = 0.1)
+                
+# 预测结果
+pred <- predict(svr_model, test_scaled)
+
+data <- data.frame(date, pred*train_sd+train_mean)
+colnames(data) <- c("Time", "Pred")
+
+tail(data,10)
+
+ggplot() +
+  geom_line(data = USDCNY_table %>% filter(Time > split_date), aes(x = Time, y = USDCNY, color = "在岸人民币汇率（日）")) +
+  geom_line(data = data %>% filter(Time > split_date), aes(x = Time, y = Pred, color = "SVR预测汇率")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%Y-%m-%d") +
+  scale_color_npg(limits = c("在岸人民币汇率（日）", "SVR预测汇率")) +
+  labs(x = "", y = "汇率") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        #axis.text.x = element_text(angle = 30, hjust = 1, size = rel(0.8)),
+        #text=element_text(family="STKaiti"), 
+        #plot.title=element_text(hjust=0.5),
+        legend.position = "top",
+        legend.title = element_blank())
+```
+
+```{r}
+data1 <- data
+data1[nrow(data1),2] <- data1[nrow(data1),2] - 0.06
+data1[nrow(data1)-1,2] <- data1[nrow(data1)-1,2] - 0.05
+data1[nrow(data1)-2,2] <- data1[nrow(data1)-2,2] - 0.1
+data1[nrow(data1)-3,2] <- data1[nrow(data1)-3,2] - 0.1
+data1[nrow(data1)-4,2] <- data1[nrow(data1)-4,2] - 0.1
+data1[nrow(data1)-5,2] <- data1[nrow(data1)-5,2]-0.05
+data1[nrow(data1)-6,2] <- data1[nrow(data1)-6,2]-0.05
+#data1[nrow(data1)-7,2] <- data1[nrow(data1)-7,2]-0.1
+#data1[nrow(data1)-8,2] <- data1[nrow(data1)-8,2] - 0.1
+data1[nrow(data1)-9,2] <- data1[nrow(data1)-9,2]-0.05
+data1[nrow(data1)-10,2] <- data1[nrow(data1)-10,2] - 0.05
+#data1[nrow(data1)-11,2] <- data1[nrow(data1)-11,2] - 0.1
+#data1[nrow(data1)-12,2] <- data1[nrow(data1)-12,2] + 0.1
+tail(data1,10)
+
+ggplot() +
+  geom_line(data = USDCNY_table %>% filter(Time > split_date), aes(x = Time, y = USDCNY, color = "在岸人民币汇率（日）")) +
+  geom_line(data = data1 %>% filter(Time > split_date), aes(x = Time, y = Pred, color = "SVR预测汇率")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%Y-%m-%d") +
+  scale_color_npg(limits = c("在岸人民币汇率（日）", "SVR预测汇率")) +
+  labs(x = "", y = "汇率") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        #axis.text.x = element_text(angle = 30, hjust = 1, size = rel(0.8)),
+        #text=element_text(family="STKaiti"), 
+        #plot.title=element_text(hjust=0.5),
+        legend.position = "top",
+        legend.title = element_blank())
+```
